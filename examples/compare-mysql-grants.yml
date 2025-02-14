@@ -1,0 +1,54 @@
+databases:
+  devdb:
+    host: localhost
+    port: 3307
+    user: root
+    password: root
+    env: dev
+  proddb:
+    host: localhost
+    port: 3306
+    user: root
+    password: root
+    env: prod
+
+workloads:
+  api:
+    dev:
+      - user: "api-dev"
+        hosts:
+          - "192.168.122.10"
+          - "192.168.122.11"
+          - "192.168.122.12"
+    prod:
+      - user: "api"
+        hosts:
+          - "192.168.123.10"
+          - "192.168.123.11"
+          - "192.168.123.12"
+  syskvp:
+    dev:
+      - user: "syskvp-dev"
+        hosts:
+          - "192.168.122.13"
+          - "192.168.122.14"
+          - "192.168.122.15"
+    prod:
+      - user: "syskvp"
+        hosts:
+          - "192.168.123.13"
+          - "192.168.123.14"
+          - "192.168.123.15"
+  users:
+    dev:
+      - user: "usermgr-dev"
+        hosts:
+          - "192.168.122.16"
+          - "192.168.122.17"
+          - "192.168.122.18"
+    prod:
+      - user: "usermgr"
+        hosts:
+          - "192.168.123.16"
+          - "192.168.123.17"
+          - "192.168.123.18"

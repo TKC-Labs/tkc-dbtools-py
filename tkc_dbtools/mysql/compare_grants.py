@@ -3,29 +3,102 @@ Functions to compare MySQL user grants between multiple MySQL servers.
 """
 
 import logging
+import pprint
 import pymysql
+import re
 import yaml
-from typing import Dict, List, Any
+from typing import Dict, List, Set, Any
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def _compare_grants(
-    workload: Dict[str, List[Dict[str, List[str]]]],
-    db_connections: Dict[str, pymysql.Connection],
-) -> None:
-    """Compare MySQL user grants for a specific workload."""
-    logger.info(f"Comparing grants for workload: {workload}")
+def _compare_user_grants(
+    user_grants: List[str], anchor_user_grants: List[str]
+) -> Set[str]:
+    """Compare the grants of two users."""
+    # Strip the IP address from the grants so we can compare them
+    stripped_user_grants = [_strip_ip_from_grant(grant) for grant in user_grants]
+    stripped_anchor_user_grants = [
+        _strip_ip_from_grant(grant) for grant in anchor_user_grants
+    ]
+
+    sorted_user_grants = sorted(stripped_user_grants)
+    sorted_anchor_user_grants = sorted(stripped_anchor_user_grants)
+
+    logger.debug(f"Anchor User grants: {sorted_anchor_user_grants}")
+    logger.debug(f"User grants: {sorted_user_grants}")
+
+    missing_from_anchor_user_grants = set(sorted_anchor_user_grants) - set(
+        sorted_user_grants
+    )
+    missing_from_user_grants = set(sorted_user_grants) - set(sorted_anchor_user_grants)
+
+    logger.debug(f"Missing from anchor user: {missing_from_anchor_user_grants}")
+    logger.debug(f"Missing from user: {missing_from_user_grants}")
+
+    grant_diffs = {
+        "missing_from_user": missing_from_user_grants,
+        "missing_from_anchor_user": missing_from_anchor_user_grants,
+    }
+
+    return grant_diffs
+
+
+def _compare_workload_grants(workload: Dict[str, Dict[str, List[str]]]) -> bool:
+    """Compare grants in a workload"""
+    # dict to store the diffs for each user in the workload
+    workload_grant_diffs = {}
+
     for env, users in workload.items():
+        logger.debug(f"Comparing grants for environment: {env}")
+        workload_grant_diffs[env] = {}
+
+        # Get a list of users
+        user_list = list(users.keys())
+        # Select anchor user
+        anchor_user = user_list[0]
+
+        # Compare each user to th eothers
+        for i in range(1, len(user_list)):
+            user = user_list[i]
+            logger.debug(f"Comparing grants between users: {anchor_user} and {user}")
+            workload_grant_diffs[env][user] = {}
+            workload_grant_diffs[env][user]["anchor_user"] = anchor_user
+            workload_grant_diffs[env][user]["diffs"] = _compare_user_grants(
+                users[anchor_user], users[user]
+            )
+
+    return workload_grant_diffs
+
+
+def _extract_db_table(grant: str) -> tuple:
+    """Extract the database and table name from a grant string."""
+    match = re.search(r"`([^`]+)`\.`([^`]+)`", grant)
+    if match:
+        return match.group(1), match.group(2)
+    return "", ""
+
+
+def _gather_workload_grants(
+    workload: Dict[str, List[Dict[str, Any]]],
+    db_connections: Dict[str, pymysql.Connection],
+) -> Dict[str, Dict[str, List[str]]]:
+    """Collect and return grants for each environment in the workload"""
+    # Build a dict of envs, users, and grants to use as data/lookup table
+    workload_grants = {}
+    for env, users in workload.items():
+        # Add env to our data table
+        workload_grants[env] = {}
         for user in users:
             user_name, hosts = user["user"], user["hosts"]
             for host in hosts:
                 grants = _get_grants(db_connections[env], user_name, host)
-                logger.info(f"Grants for {user_name}@{host} in {env}: {grants}")
+                workload_grants[env][f"{user_name}@{host}"] = grants
+    return workload_grants
 
 
-def _get_grants(conn, user, host):
+def _get_grants(conn: pymysql.Connection, user: str, host: str) -> List[str]:
     """Get the grants for a specific user and host."""
     with conn.cursor() as cursor:
         query = "SHOW GRANTS FOR %s@%s"
@@ -45,13 +118,18 @@ def _connect_to_db(database: Dict[str, Any]) -> pymysql.Connection:
     )
 
 
-def _read_config(config_file="compare-mysql-grants.yml") -> Dict[str, Any]:
+def _read_config(config_file: str = "compare-mysql-grants.yml") -> Dict[str, Any]:
     """Read the configuration file."""
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
     if config is None:
         raise ValueError("Failed to parse configuration file.")
     return config
+
+
+def _strip_ip_from_grant(grant: str) -> str:
+    """Remove the IP address from a grant string."""
+    return re.sub(r"@\`[^\`]+\`", "@`<IP>`", grant)
 
 
 def _validate_config(config: Dict[str, Any]) -> None:
@@ -175,39 +253,60 @@ def run() -> int:
     if len(db_connections.keys()) == len(config.get("databases").keys()):
         logger.info("All databases connected successfully.")
 
-    # For each workload we need to compare the grants within each environment
-    # first. If the grants across users in the same environment match, we can
-    # use any user for cross environment comparison. If the grants do not match
-    # we need to report that so it can be resolved before comparing across
-    # environments.
+    # For each workload we need to gather the grants for each user in each env
+    all_grants = {}
     for workload_name, workload in config.get("workloads").items():
-        logger.info(f"Comparing MySQL user grants for workload: {workload_name}")
-        print(f"{workload}")
-        _compare_grants(workload, db_connections)
+        logger.info(f"Gathering MySQL user grants for workload: {workload_name}")
+        all_grants[workload_name] = _gather_workload_grants(workload, db_connections)
 
-    # try:
-    #     for workload, users in config.get("workloads").items():
+    # Now we have all the grants and may compare
+    for workload_name, workload in all_grants.items():
+        logger.info(f"Comparing grants for workload: {workload_name}")
 
-    #         # INFO:tkc_dbtools.mysql.compare_grants:Comparing MySQL user grants...
-    #         # Workload: api has users: {'dev': [{'user': 'api-dev', 'hosts': ['192.168.122.10', '192.168.122.11', '192.168.122.12']}], 'prod': [{'user': 'api', 'hosts': ['192.168.123.10', '192.168.123.11', '192.168.123.12']}]}
-    #         # Workload: syskvp has users: {'dev': [{'user': 'syskvp-dev', 'hosts': ['192.168.122.13', '192.168.122.14', '192.168.122.15']}], 'prod': [{'user': 'syskvp', 'hosts': ['192.168.123.13', '192.168.123.14', '192.168.123.15']}]}
-    #         # Workload: users has users: {'dev': [{'user': 'usermgr-dev', 'hosts': ['192.168.122.16', '192.168.122.17', '192.168.122.18']}], 'prod': [{'user': 'usermgr', 'hosts': ['192.168.123.16', '192.168.123.17', '192.168.123.18']}]}
-    #         # INFO:tkc_dbtools.mysql.compare_grants:Finished comparing MySQL user grants.
+        workload_grants_status = _compare_workload_grants(workload)
 
-    #         print(f"Workload: {workload} has users: {users}")
-    #         # dev_user, dev_host = users["dev"]["user"], users["dev"]["host"]
-    #         # prod_user, prod_host = users["prod"]["user"], users["prod"]["host"]
+        for env, status in workload_grants_status.items():
+            workload_has_grant_diffs = False
+            for user, comparison in status.items():
+                if (
+                    comparison.get("diffs")["missing_from_user"]
+                    or comparison.get("diffs")["missing_from_anchor_user"]
+                ):
+                    anchor_user = comparison.get("anchor_user")
+                    workload_has_grant_diffs = True
 
-    #         # dev_grants = get_grants(dev_conn, dev_user, dev_host)
-    #         # prod_grants = get_grants(prod_conn, prod_user, prod_host)
+                    logger.info(
+                        f"User {user} has grant differences compared to anchor user {anchor_user}. (Workload: {workload_name}, Environment: {env})"
+                    )
+                    if comparison.get("diffs")["missing_from_user"]:
+                        logger.info(
+                            f"Grants missing from {user} present for anchor user {anchor_user}:"
+                        )
+                        for grant in sorted(
+                            comparison.get("diffs")["missing_from_user"],
+                            key=_extract_db_table,
+                        ):
+                            logger.info(f"  {grant}")
+                    if comparison.get("diffs")["missing_from_anchor_user"]:
+                        logger.info(
+                            f"Grants present for {user} missing from anchor user {anchor_user}:"
+                        )
+                        for grant in sorted(
+                            comparison.get("diffs")["missing_from_anchor_user"],
+                            key=_extract_db_table,
+                        ):
+                            logger.info(f"  {grant}")
 
-    #         # compare_grants(dev_grants, prod_grants, workload)
-    # except AttributeError as e:
-    #     logger.error(
-    #         f"Invalid configuration file, check workload and user configuration. ({e})"
-    #     )
-    #     return 1
-    # finally:
+            if workload_has_grant_diffs:
+                logger.info(
+                    f"Grants differences detected, Workload: {workload_name}, Environment: {env}"
+                )
+            else:
+                logger.info(
+                    f"Grants aligned, Workload: {workload_name}, Environment: {env}"
+                )
+
+        logger.info(f"Grants comparison completed, Workload: {workload_name}.")
 
     # Close the database connections
     for conn_name, conn in db_connections.items():

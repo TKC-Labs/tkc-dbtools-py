@@ -13,14 +13,17 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def _compare_user_grants(
-    user_grants: List[str], anchor_user_grants: List[str]
+def _compare_workload_user_grants(
+    anchor_user_grants: List[str], user_grants: List[str]
 ) -> Set[str]:
     """Compare the grants of two users."""
-    # Strip the IP address from the grants so we can compare them
-    stripped_user_grants = [_strip_ip_from_grant(grant) for grant in user_grants]
+    # Strip the Username and IP address from the grants so we can compare them
+    # without those considerations.
+    stripped_user_grants = [
+        _strip_ip_and_username_from_grant(grant) for grant in user_grants
+    ]
     stripped_anchor_user_grants = [
-        _strip_ip_from_grant(grant) for grant in anchor_user_grants
+        _strip_ip_and_username_from_grant(grant) for grant in anchor_user_grants
     ]
 
     sorted_user_grants = sorted(stripped_user_grants)
@@ -29,10 +32,10 @@ def _compare_user_grants(
     logger.debug(f"Anchor User grants: {sorted_anchor_user_grants}")
     logger.debug(f"User grants: {sorted_user_grants}")
 
-    missing_from_anchor_user_grants = set(sorted_anchor_user_grants) - set(
-        sorted_user_grants
+    missing_from_anchor_user_grants = set(sorted_user_grants) - set(
+        sorted_anchor_user_grants
     )
-    missing_from_user_grants = set(sorted_user_grants) - set(sorted_anchor_user_grants)
+    missing_from_user_grants = set(sorted_anchor_user_grants) - set(sorted_user_grants)
 
     logger.debug(f"Missing from anchor user: {missing_from_anchor_user_grants}")
     logger.debug(f"Missing from user: {missing_from_user_grants}")
@@ -45,9 +48,44 @@ def _compare_user_grants(
     return grant_diffs
 
 
-def _compare_workload_grants(workload: Dict[str, Dict[str, List[str]]]) -> bool:
-    """Compare grants in a workload"""
-    # dict to store the diffs for each user in the workload
+def _compare_cross_env_workload_grants(
+    workload: Dict[str, Dict[str, List[str]]], anchor_env: str
+) -> Dict[str, Dict[str, Dict[str, Set[str]]]]:
+    """Compare cross-env grants in a workload"""
+    workload_grant_diffs = {}
+
+    # Get the first user in the anchor_env as our baseline
+    anchor_env_user = next(iter(workload[anchor_env]))
+
+    for env in workload.keys():
+        # Skip the anchor_env because we use it as our baseline
+        if env == anchor_env:
+            continue
+
+        workload_grant_diffs[env] = {}
+
+        # Get the first user in the env as our comparison
+        env_user = next(iter(workload[env]))
+
+        logger.info(
+            f"Cross-environment comparison between environments: {anchor_env} and {env}"
+        )
+        workload_grant_diffs[env][env_user] = {}
+        workload_grant_diffs[env][env_user]["anchor_env"] = anchor_env
+        workload_grant_diffs[env][env_user]["anchor_env_user"] = anchor_env_user
+
+        logger.debug(f"Anchor Env User Grants: {workload[anchor_env][anchor_env_user]}")
+        logger.debug(f"Env User Grants: {workload[env][env_user]}")
+
+        workload_grant_diffs[env][env_user]["diffs"] = _compare_workload_user_grants(
+            workload[anchor_env][anchor_env_user], workload[env][env_user]
+        )
+
+    return workload_grant_diffs
+
+
+def _compare_per_env_workload_grants(workload: Dict[str, Dict[str, List[str]]]) -> bool:
+    """Compare per-env grants in a workload"""
     workload_grant_diffs = {}
 
     for env, users in workload.items():
@@ -56,16 +94,21 @@ def _compare_workload_grants(workload: Dict[str, Dict[str, List[str]]]) -> bool:
 
         # Get a list of users
         user_list = list(users.keys())
-        # Select anchor user
+
+        # TODO: Test for deterministic order bugs with users since we derive
+        # the list of users from a dict. We are expecting this to be the
+        # first user and host pair from the yaml per-env, per-workload.
+
+        # Select first user in list as anchor user
         anchor_user = user_list[0]
 
-        # Compare each user to th eothers
+        # Compare each user to the others
         for i in range(1, len(user_list)):
             user = user_list[i]
             logger.debug(f"Comparing grants between users: {anchor_user} and {user}")
             workload_grant_diffs[env][user] = {}
             workload_grant_diffs[env][user]["anchor_user"] = anchor_user
-            workload_grant_diffs[env][user]["diffs"] = _compare_user_grants(
+            workload_grant_diffs[env][user]["diffs"] = _compare_workload_user_grants(
                 users[anchor_user], users[user]
             )
 
@@ -118,6 +161,114 @@ def _connect_to_db(database: Dict[str, Any]) -> pymysql.Connection:
     )
 
 
+def _process_cross_env_workload_grants_status(
+    workload_name: str,
+    cross_env_workload_grants_status: Dict[str, Dict[str, Dict[str, Set[str]]]],
+) -> None:
+    """Process the grants status and log the results."""
+
+    # Process the grants for users across each environment per-workload
+    # to ensure each user across environments has the same grants.
+    for env, status in cross_env_workload_grants_status.items():
+        logger.debug(f"Env: {env} is {status}")
+        workload_has_grant_diffs = False
+
+        for user, comparison in status.items():
+            if (
+                comparison.get("diffs")["missing_from_user"]
+                or comparison.get("diffs")["missing_from_anchor_user"]
+            ):
+                anchor_user = comparison.get("anchor_env_user")
+                workload_has_grant_diffs = True
+
+                logger.info(
+                    f"Cross-environment {user} has grant differences compared to anchor user {anchor_user} for workload {workload_name} in environment {env}."
+                )
+                if comparison.get("diffs")["missing_from_user"]:
+                    logger.info(
+                        f"Grants missing from {user} present for anchor user {anchor_user}:"
+                    )
+                    for grant in sorted(
+                        comparison.get("diffs")["missing_from_user"],
+                        key=_extract_db_table,
+                    ):
+                        logger.info(f"  {grant}")
+                if comparison.get("diffs")["missing_from_anchor_user"]:
+                    logger.info(
+                        f"Grants present for {user} missing from anchor user {anchor_user}:"
+                    )
+                    for grant in sorted(
+                        comparison.get("diffs")["missing_from_anchor_user"],
+                        key=_extract_db_table,
+                    ):
+                        logger.info(f"  {grant}")
+
+        if workload_has_grant_diffs:
+            f"Cross-environment grants differences detected for workload {workload_name}between environments {comparison.get("anchor_env")} and {env}."
+
+        else:
+            logger.info(
+                f"Cross-environment grants are aligned for {workload_name} between environments {comparison.get("anchor_env")} and {env}."
+            )
+
+
+def _process_per_env_workload_grants_status(
+    workload_name: str,
+    workload_grants_status: Dict[str, Any],
+) -> None:
+    """Process the grants status and log the results."""
+
+    # Process the grants for users within each environment per-workload
+    # to ensure each user across an environment has the same grants.
+    for env, status in workload_grants_status.items():
+        workload_has_grant_diffs = False
+        for user, comparison in status.items():
+            if (
+                comparison.get("diffs")["missing_from_user"]
+                or comparison.get("diffs")["missing_from_anchor_user"]
+            ):
+                anchor_user = comparison.get("anchor_user")
+                workload_has_grant_diffs = True
+
+                logger.info(
+                    f"User {user} has grant differences compared to anchor user {anchor_user}. (Workload: {workload_name}, Environment: {env})"
+                )
+                if comparison.get("diffs")["missing_from_user"]:
+                    logger.info(
+                        f"Grants missing from {user} present for anchor user {anchor_user}:"
+                    )
+                    for grant in sorted(
+                        comparison.get("diffs")["missing_from_user"],
+                        key=_extract_db_table,
+                    ):
+                        logger.info(f"  {grant}")
+                if comparison.get("diffs")["missing_from_anchor_user"]:
+                    logger.info(
+                        f"Grants present for {user} missing from anchor user {anchor_user}:"
+                    )
+                    for grant in sorted(
+                        comparison.get("diffs")["missing_from_anchor_user"],
+                        key=_extract_db_table,
+                    ):
+                        logger.info(f"  {grant}")
+
+        if workload_has_grant_diffs:
+            # The environment for the workload had grant differences so we
+            # cannot complete the cross-environment comparison for this
+            # workload.
+            logger.info(
+                f"Environment grants differences detected for workload {workload_name} in environment {env}, use caution with cross-environment comparisons."
+            )
+
+        else:
+            # The environment for the workload had no grant differences so we
+            # can proceed with the cross-environment comparison for this
+            # workload.
+            logger.info(
+                f"Environment grants are aligned for workload {workload_name} in environment {env}"
+            )
+
+
 def _read_config(config_file: str = "compare-mysql-grants.yml") -> Dict[str, Any]:
     """Read the configuration file."""
     with open(config_file, "r") as f:
@@ -130,6 +281,15 @@ def _read_config(config_file: str = "compare-mysql-grants.yml") -> Dict[str, Any
 def _strip_ip_from_grant(grant: str) -> str:
     """Remove the IP address from a grant string."""
     return re.sub(r"@\`[^\`]+\`", "@`<IP>`", grant)
+
+
+def _strip_ip_and_username_from_grant(grant: str) -> str:
+    """Remove the IP address and username from a grant string."""
+    # Remove the IP address
+    grant = re.sub(r"@\`[^\`]+\`", "@`<IP>`", grant)
+    # Remove the username
+    grant = re.sub(r"TO \`[^\`]+\`@", "TO `user`@", grant)
+    return grant
 
 
 def _validate_config(config: Dict[str, Any]) -> None:
@@ -235,6 +395,13 @@ def run() -> int:
         logger.error(f"Configuration file validation failed: {e}")
         return 1
 
+    # Get the leader environment for cross-environment comparison
+    anchor_env = [
+        db for db, values in config.get("databases").items() if values.get("leader")
+    ][0]
+
+    logger.info(f"Leader database: {anchor_env}")
+
     # Connect to the databases
     db_connections = {}
     for database in config.get("databases"):
@@ -263,50 +430,19 @@ def run() -> int:
     for workload_name, workload in all_grants.items():
         logger.info(f"Comparing grants for workload: {workload_name}")
 
-        workload_grants_status = _compare_workload_grants(workload)
+        # Compare the per-env grants for the workload
+        per_env_workload_grants_status = _compare_per_env_workload_grants(workload)
+        _process_per_env_workload_grants_status(
+            workload_name, per_env_workload_grants_status
+        )
 
-        for env, status in workload_grants_status.items():
-            workload_has_grant_diffs = False
-            for user, comparison in status.items():
-                if (
-                    comparison.get("diffs")["missing_from_user"]
-                    or comparison.get("diffs")["missing_from_anchor_user"]
-                ):
-                    anchor_user = comparison.get("anchor_user")
-                    workload_has_grant_diffs = True
-
-                    logger.info(
-                        f"User {user} has grant differences compared to anchor user {anchor_user}. (Workload: {workload_name}, Environment: {env})"
-                    )
-                    if comparison.get("diffs")["missing_from_user"]:
-                        logger.info(
-                            f"Grants missing from {user} present for anchor user {anchor_user}:"
-                        )
-                        for grant in sorted(
-                            comparison.get("diffs")["missing_from_user"],
-                            key=_extract_db_table,
-                        ):
-                            logger.info(f"  {grant}")
-                    if comparison.get("diffs")["missing_from_anchor_user"]:
-                        logger.info(
-                            f"Grants present for {user} missing from anchor user {anchor_user}:"
-                        )
-                        for grant in sorted(
-                            comparison.get("diffs")["missing_from_anchor_user"],
-                            key=_extract_db_table,
-                        ):
-                            logger.info(f"  {grant}")
-
-            if workload_has_grant_diffs:
-                logger.info(
-                    f"Grants differences detected, Workload: {workload_name}, Environment: {env}"
-                )
-            else:
-                logger.info(
-                    f"Grants aligned, Workload: {workload_name}, Environment: {env}"
-                )
-
-        logger.info(f"Grants comparison completed, Workload: {workload_name}.")
+        # Compare the cross-env grants for the workload
+        cross_env_workload_grants_status = _compare_cross_env_workload_grants(
+            workload, anchor_env
+        )
+        _process_cross_env_workload_grants_status(
+            workload_name, cross_env_workload_grants_status
+        )
 
     # Close the database connections
     for conn_name, conn in db_connections.items():

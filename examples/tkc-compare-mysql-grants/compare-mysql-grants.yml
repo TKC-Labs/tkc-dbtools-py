@@ -11,6 +11,12 @@ databases:
     user: root
     password: root
     leader: true
+  stage:
+    host: localhost
+    port: 3308
+    user: root
+    password: root
+    leader: false
 
 workloads:
   api:
@@ -26,6 +32,12 @@ workloads:
           - "192.168.123.10"
           - "192.168.123.11"
           - "192.168.123.12"
+    stage:
+      - user: "api-stage"
+        hosts:
+          - "192.168.124.10"
+          - "192.168.124.11"
+          - "192.168.124.12"
   syskvp:
     dev:
       - user: "syskvp-dev"
@@ -39,6 +51,12 @@ workloads:
           - "192.168.123.13"
           - "192.168.123.14"
           - "192.168.123.15"
+    stage:
+      - user: "syskvp-stage"
+        hosts:
+          - "192.168.124.13"
+          - "192.168.124.14"
+          - "192.168.124.15"
   users:
     dev:
       - user: "usermgr-dev"
@@ -52,3 +70,9 @@ workloads:
           - "192.168.123.16"
           - "192.168.123.17"
           - "192.168.123.18"
+    stage:
+      - user: "usermgr-stage"
+        hosts:
+          - "192.168.124.16"
+          - "192.168.124.17"
+          - "192.168.124.18"

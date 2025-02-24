@@ -9,5 +9,3 @@ GRANT SELECT, INSERT ON example.api TO 'api'@'192.168.123.12';
 GRANT SELECT ON example.syskvp TO 'api'@'192.168.123.10';
 GRANT SELECT ON example.syskvp TO 'api'@'192.168.123.11';
 GRANT SELECT ON example.syskvp TO 'api'@'192.168.123.12';
-
-FLUSH PRIVILEGES;

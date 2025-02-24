@@ -13,5 +13,3 @@ GRANT SELECT ON example.syskvp TO 'usermgr'@'192.168.123.18';
 GRANT ALL PRIVILEGES ON example.users TO 'usermgr'@'192.168.123.16';
 GRANT ALL PRIVILEGES ON example.users TO 'usermgr'@'192.168.123.17';
 GRANT ALL PRIVILEGES ON example.users TO 'usermgr'@'192.168.123.18';
-
-FLUSH PRIVILEGES;

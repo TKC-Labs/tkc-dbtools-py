@@ -8,13 +8,13 @@ set -euo pipefail
 # Function to cleanup the containers and volumes
 cleanup() {
     echo "Stopping containers..."
-    podman stop devdb proddb
+    podman stop devdb proddb stagedb
     echo
     echo "Removing containers..."
-    podman rm devdb proddb
+    podman rm devdb proddb stagedb
     echo
     echo "Removing volumes..."
-    podman volume rm example_devdb example_proddb
+    podman volume rm example_devdb example_proddb example_stagedb
     echo
     echo "Cleanup completed."
 }
@@ -72,6 +72,7 @@ done
 echo "Creating data volumes for test persistence..."
 podman volume create example_devdb
 podman volume create example_proddb
+podman volume create example_stagedb
 echo
 
 # Dev environment
@@ -92,9 +93,20 @@ podman run -d --name proddb --hostname proddb \
     docker.io/percona/percona-server:8.0
 echo
 
+
+# Stage environment
+echo "Creating stagedb container..."
+podman run -d --name stagedb --hostname stagedb \
+    -e MYSQL_ROOT_PASSWORD=root \
+    -v "example_stagedb:/var/lib/mysql" \
+    -p 3308:3306 \
+    docker.io/percona/percona-server:8.0
+echo
+
 # Check if the databases are ready
 check_db_ready devdb 3307
 check_db_ready proddb 3306
+check_db_ready stagedb 3308
 echo
 echo "Databases are ready."
 echo
@@ -114,6 +126,12 @@ mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/schema.sql
 echo "  Example database schema deployed to proddb."
 fi
 
+# stagedb is on 3308
+if ! mysql -h localhost -P 3308 -u root -proot -e 'use example;' 2> /dev/null; then
+mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/schema.sql
+echo "  Example database schema deployed to stagedb."
+fi
+
 # Create Users and Apply Grants
 echo
 echo "Creating users and applying grants..."
@@ -128,6 +146,11 @@ mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/prod-api-workload-gr
 mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/prod-syskvp-workload-grants.sql
 mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/prod-user-workload-grants.sql
 
+# stagedb is on 3306
+mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/stage-api-workload-grants.sql
+mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/stage-syskvp-workload-grants.sql
+mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/stage-user-workload-grants.sql
+
 # Show the users created
 echo
 echo "Users deployed to devdb:"
@@ -136,6 +159,10 @@ mysql -h localhost -P 3307 -u root -proot -e "SELECT User,Host FROM mysql.user W
 echo
 echo "Users deployed to proddb:"
 mysql -h localhost -P 3306 -u root -proot -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
+
+echo
+echo "Users deployed to stagedb:"
+mysql -h localhost -P 3308 -u root -proot -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
 
 echo
 echo "Ready for testing"

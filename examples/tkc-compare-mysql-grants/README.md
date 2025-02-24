@@ -4,10 +4,11 @@ This example demonstrates usage of the *tkc-compare-mysql-grants* DB utility.
 
 The *tkc-compare-mysql-grants* utility is a configurable grants comparison script for MySQL compatible databases.  It accepts a configuration map of workloads, users, and databases to produce a comparison of grants across environments.
 
-This example deploys 2 Percona database servers in containers to mimic the following environments.
+This example deploys 3 Percona database servers in containers to mimic the following environments.
 
  - `proddb` is for the prod environment database container
- - `devdb` is the dev environment dataabase container
+ - `devdb` is the dev environment database container
+ - `stagedb` is the stage environment database container
 
 Each environment has the same "workloads" but the username and IP for the workload users differ making direct comparison rather difficult.
 
@@ -146,6 +147,33 @@ tkc-compare-mysql-grants
 
 # Return to the original state
 mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-cross-env-example.sql
+
+# Check that there are no grants issues
+tkc-compare-mysql-grants
+
+
+# This creates differences beteween grants by adding an new additional grant
+# for all users on the pod environment api workload.
+#
+# The utility will show this type of difference as missing grants found in
+# a cross-environment comprison for any envrionment where the grant is missing.
+#
+# Cross-environment comparison between environments: prod and dev
+# Cross-environment comparison between environments: prod and stage
+# Cross-environment api-dev@192.168.122.10 has grant differences compared to anchor user api@192.168.123.10 for workload api in environment dev.
+# Grants missing from api-dev@192.168.122.10 present for anchor user api@192.168.123.10:
+#   GRANT SELECT ON `example`.`users` TO `user`@`<IP>`
+# Cross-environment api-stage@192.168.124.10 has grant differences compared to anchor user api@192.168.123.10 for workload api in environment stage.
+# Grants missing from api-stage@192.168.124.10 present for anchor user api@192.168.123.10:
+#   GRANT SELECT ON `example`.`users` TO `user`@`<IP>`
+#
+mysql -h localhost -P 3306 -u root -proot < ./prod-api-add-extra-grants-example.sql
+
+# Check that the issue is reported
+tkc-compare-mysql-grants
+
+# Return to the original state
+mysql -h localhost -P 3306 -u root -proot < ./prod-api-remove-extra-grants-example.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants

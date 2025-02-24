@@ -327,7 +327,6 @@ def _validate_config(config: Dict[str, Any]) -> None:
         envs.append(database)
 
         if config_values.get("leader", False):
-            logger.info(f"Database {database} is set as leader.")
             leaders.append(database)
 
     if len(leaders) != 1:
@@ -337,7 +336,7 @@ def _validate_config(config: Dict[str, Any]) -> None:
 
     # Then we need to validate the workloads configuration
     workloads_config = config.get("workloads")
-    logger.info(
+    logger.debug(
         f"Validating workload configurations for workloads: {', '.join(workloads_config.keys())}"
     )
 

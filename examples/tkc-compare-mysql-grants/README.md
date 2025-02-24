@@ -26,11 +26,18 @@ As an alternative I suggest creating a new workload to match the exact grants th
 
 To run this example you'll need a few things installed on the container host machine.
 
-  - Podman *(Docker coming soon)*
+  - Podman or Docker
   - `mysql` CLI client
   - `mysqladmin` CLI client
 
-The `deploy_example_in_podman.sh` script checks for these binaries before attempting to run.
+The deployment scripts check for these binaries before attempting to run.
+
+- [deploy_example_in_podman.sh](examples/tkc-compare-mysql-grants/deploy_example_in_podman.sh)
+  - Deploys containers using podman
+
+- [deploy_example_in_docker.sh](examples/tkc-compare-mysql-grants/deploy_example_in_docker.sh)
+  - Deploys containers using docker
+  - Requires user to have permissions to start socker containers
 
 ## Usage
 
@@ -181,7 +188,3 @@ tkc-compare-mysql-grants
 # Cleanup the lab; destroys and removes the DB containers
 ./deploy_example_in_podman.sh cleanup
 ```
-
-## TODO
-
-- Add Docker support to the example to provide for those that cannot run Podman.

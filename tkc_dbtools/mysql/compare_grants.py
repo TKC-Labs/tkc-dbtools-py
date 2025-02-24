@@ -3,11 +3,11 @@ Functions to compare MySQL user grants between multiple MySQL servers.
 """
 
 import logging
-import pprint
-import pymysql
 import re
-import yaml
 from typing import Dict, List, Set, Any
+
+import pymysql
+import yaml
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -29,16 +29,16 @@ def _compare_workload_user_grants(
     sorted_user_grants = sorted(stripped_user_grants)
     sorted_anchor_user_grants = sorted(stripped_anchor_user_grants)
 
-    logger.debug(f"Anchor User grants: {sorted_anchor_user_grants}")
-    logger.debug(f"User grants: {sorted_user_grants}")
+    logger.debug("Anchor User grants: %s", sorted_anchor_user_grants)
+    logger.debug("User grants: %s", sorted_user_grants)
 
     missing_from_anchor_user_grants = set(sorted_user_grants) - set(
         sorted_anchor_user_grants
     )
     missing_from_user_grants = set(sorted_anchor_user_grants) - set(sorted_user_grants)
 
-    logger.debug(f"Missing from anchor user: {missing_from_anchor_user_grants}")
-    logger.debug(f"Missing from user: {missing_from_user_grants}")
+    logger.debug("Missing from anchor user: %s", missing_from_anchor_user_grants)
+    logger.debug("Missing from user: %s", missing_from_user_grants)
 
     grant_diffs = {
         "missing_from_user": missing_from_user_grants,
@@ -68,14 +68,18 @@ def _compare_cross_env_workload_grants(
         env_user = next(iter(workload[env]))
 
         logger.info(
-            f"Cross-environment comparison between environments: {anchor_env} and {env}"
+            "Cross-environment comparison between environments: %s and %s",
+            anchor_env,
+            env,
         )
         workload_grant_diffs[env][env_user] = {}
         workload_grant_diffs[env][env_user]["anchor_env"] = anchor_env
         workload_grant_diffs[env][env_user]["anchor_env_user"] = anchor_env_user
 
-        logger.debug(f"Anchor Env User Grants: {workload[anchor_env][anchor_env_user]}")
-        logger.debug(f"Env User Grants: {workload[env][env_user]}")
+        logger.debug(
+            "Anchor Env User Grants: %s", workload[anchor_env][anchor_env_user]
+        )
+        logger.debug("Env User Grants: %s", workload[env][env_user])
 
         workload_grant_diffs[env][env_user]["diffs"] = _compare_workload_user_grants(
             workload[anchor_env][anchor_env_user], workload[env][env_user]
@@ -89,15 +93,11 @@ def _compare_per_env_workload_grants(workload: Dict[str, Dict[str, List[str]]]) 
     workload_grant_diffs = {}
 
     for env, users in workload.items():
-        logger.debug(f"Comparing grants for environment: {env}")
+        logger.debug("Comparing grants for environment: %s", env)
         workload_grant_diffs[env] = {}
 
         # Get a list of users
         user_list = list(users.keys())
-
-        # TODO: Test for deterministic order bugs with users since we derive
-        # the list of users from a dict. We are expecting this to be the
-        # first user and host pair from the yaml per-env, per-workload.
 
         # Select first user in list as anchor user
         anchor_user = user_list[0]
@@ -105,7 +105,7 @@ def _compare_per_env_workload_grants(workload: Dict[str, Dict[str, List[str]]]) 
         # Compare each user to the others
         for i in range(1, len(user_list)):
             user = user_list[i]
-            logger.debug(f"Comparing grants between users: {anchor_user} and {user}")
+            logger.debug("Comparing grants between users: %s and %s", anchor_user, user)
             workload_grant_diffs[env][user] = {}
             workload_grant_diffs[env][user]["anchor_user"] = anchor_user
             workload_grant_diffs[env][user]["diffs"] = _compare_workload_user_grants(
@@ -170,7 +170,6 @@ def _process_cross_env_workload_grants_status(
     # Process the grants for users across each environment per-workload
     # to ensure each user across environments has the same grants.
     for env, status in cross_env_workload_grants_status.items():
-        logger.debug(f"Env: {env} is {status}")
         workload_has_grant_diffs = False
 
         for user, comparison in status.items():
@@ -182,34 +181,55 @@ def _process_cross_env_workload_grants_status(
                 workload_has_grant_diffs = True
 
                 logger.info(
-                    f"Cross-environment {user} has grant differences compared to anchor user {anchor_user} for workload {workload_name} in environment {env}."
+                    (
+                        "Cross-environment %s has grant differences compared to"
+                        "anchor user %s for workload %s in environment %s."
+                    ),
+                    user,
+                    anchor_user,
+                    workload_name,
+                    env,
                 )
                 if comparison.get("diffs")["missing_from_user"]:
                     logger.info(
-                        f"Grants missing from {user} present for anchor user {anchor_user}:"
+                        "Grants missing from %s present for anchor user %s:",
+                        user,
+                        anchor_user,
                     )
                     for grant in sorted(
                         comparison.get("diffs")["missing_from_user"],
                         key=_extract_db_table,
                     ):
-                        logger.info(f"  {grant}")
+                        logger.info("  %s", grant)
                 if comparison.get("diffs")["missing_from_anchor_user"]:
                     logger.info(
-                        f"Grants present for {user} missing from anchor user {anchor_user}:"
+                        "Grants present for %s missing from anchor user %s:",
+                        user,
+                        anchor_user,
                     )
                     for grant in sorted(
                         comparison.get("diffs")["missing_from_anchor_user"],
                         key=_extract_db_table,
                     ):
-                        logger.info(f"  {grant}")
+                        logger.info("  %s", grant)
 
-        if workload_has_grant_diffs:
-            f"Cross-environment grants differences detected for workload {workload_name}between environments {comparison.get("anchor_env")} and {env}."
-
-        else:
-            logger.info(
-                f"Cross-environment grants are aligned for {workload_name} between environments {comparison.get("anchor_env")} and {env}."
-            )
+            if workload_has_grant_diffs:
+                logger.info(
+                    (
+                        "Cross-environment grants differences detected for workload %s "
+                        "between environments %s and %s."
+                    ),
+                    workload_name,
+                    comparison.get("anchor_env"),
+                    env,
+                )
+            else:
+                logger.info(
+                    "Cross-environment grants are aligned for %s between environments %s and %s.",
+                    workload_name,
+                    comparison.get("anchor_env"),
+                    env,
+                )
 
 
 def _process_per_env_workload_grants_status(
@@ -231,33 +251,49 @@ def _process_per_env_workload_grants_status(
                 workload_has_grant_diffs = True
 
                 logger.info(
-                    f"User {user} has grant differences compared to anchor user {anchor_user}. (Workload: {workload_name}, Environment: {env})"
+                    (
+                        "User %s has grant differences compared to anchor user %s. "
+                        "(Workload: %s, Environment: %s)"
+                    ),
+                    user,
+                    anchor_user,
+                    workload_name,
+                    env,
                 )
                 if comparison.get("diffs")["missing_from_user"]:
                     logger.info(
-                        f"Grants missing from {user} present for anchor user {anchor_user}:"
+                        "Grants missing from %s present for anchor user %s:",
+                        user,
+                        anchor_user,
                     )
                     for grant in sorted(
                         comparison.get("diffs")["missing_from_user"],
                         key=_extract_db_table,
                     ):
-                        logger.info(f"  {grant}")
+                        logger.info("  %s", grant)
                 if comparison.get("diffs")["missing_from_anchor_user"]:
                     logger.info(
-                        f"Grants present for {user} missing from anchor user {anchor_user}:"
+                        "Grants present for %s missing from anchor user %s:",
+                        user,
+                        anchor_user,
                     )
                     for grant in sorted(
                         comparison.get("diffs")["missing_from_anchor_user"],
                         key=_extract_db_table,
                     ):
-                        logger.info(f"  {grant}")
+                        logger.info("  %s", grant)
 
         if workload_has_grant_diffs:
             # The environment for the workload had grant differences so we
             # cannot complete the cross-environment comparison for this
             # workload.
             logger.info(
-                f"Environment grants differences detected for workload {workload_name} in environment {env}, use caution with cross-environment comparisons."
+                (
+                    "Environment grants differences detected for workload %s in environment %s, "
+                    "use caution with cross-environment comparisons."
+                ),
+                workload_name,
+                env,
             )
 
         else:
@@ -265,13 +301,15 @@ def _process_per_env_workload_grants_status(
             # can proceed with the cross-environment comparison for this
             # workload.
             logger.info(
-                f"Environment grants are aligned for workload {workload_name} in environment {env}"
+                "Environment grants are aligned for workload %s in environment %s",
+                workload_name,
+                env,
             )
 
 
 def _read_config(config_file: str = "compare-mysql-grants.yml") -> Dict[str, Any]:
     """Read the configuration file."""
-    with open(config_file, "r") as f:
+    with open(config_file, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     if config is None:
         raise ValueError("Failed to parse configuration file.")
@@ -301,25 +339,30 @@ def _validate_config(config: Dict[str, Any]) -> None:
     if not config.get("workloads"):
         raise AttributeError("Workloads not found in configuration file.")
 
-    # Next, we need to validate the databases configuration
+    # Validate the databases configuration
     databases_config = config.get("databases")
+    envs = _validate_database_config(databases_config)
 
-    # We need at exactly one database set as the "leader" which is considered
-    # the source of truth We'll add any databases that have leader: true set
-    # to this list and if the list is > 1, we raise an error
+    # Validate the workloads configuration
+    workloads_config = config.get("workloads")
+    _validate_workload_config(workloads_config, envs)
+
+
+def _validate_database_config(databases_config: Dict[str, Any]) -> List[str]:
+    """Validate the databases configuration."""
     leaders = []
-
-    # We need to validate that each workload has a user and host set for each
-    # environment so we create a list of envs
     envs = []
 
     for database, config_values in databases_config.items():
-        logger.info(f"Validating database configuration for {database}")
+        logger.info("Validating database configuration for %s", database)
         required_keys = ["host", "port", "user", "password"]
         missing_keys = [key for key in required_keys if key not in config_values.keys()]
         if missing_keys:
             raise AttributeError(
-                f"Database configuration for {database} is incomplete. Missing keys: {', '.join(missing_keys)}"
+                (
+                    f"Database configuration for {database} is incomplete."
+                    f"Missing keys: {', '.join(missing_keys)}"
+                )
             )
 
         # We have all our required keys, so we can add the env to the list of
@@ -331,23 +374,35 @@ def _validate_config(config: Dict[str, Any]) -> None:
 
     if len(leaders) != 1:
         raise AttributeError(
-            f"Exactly one database must be set as the leader. Found {len(leaders)} databases set as leader."
+            (
+                f"Exactly one database must be set as the leader."
+                f"Found {len(leaders)} databases set as leader."
+            )
         )
 
-    # Then we need to validate the workloads configuration
-    workloads_config = config.get("workloads")
+    return envs
+
+
+def _validate_workload_config(
+    workloads_config: Dict[str, Any], envs: List[str]
+) -> None:
+    """Validate the workloads configuration."""
     logger.debug(
-        f"Validating workload configurations for workloads: {', '.join(workloads_config.keys())}"
+        "Validating workload configurations for workloads: %s",
+        ", ".join(workloads_config.keys()),
     )
 
     for workload, workload_envs in workloads_config.items():
-        logger.info(f"Validating workload configuration for {workload}")
+        logger.info("Validating workload configuration for %s", workload)
 
         # Check workload for required envs
         missing_envs = [env for env in envs if env not in workload_envs.keys()]
         if missing_envs:
             raise AttributeError(
-                f"Workload configuration for {workload} is incomplete. Missing environments: {', '.join(missing_envs)}"
+                (
+                    f"Workload configuration for {workload} is incomplete."
+                    f"Missing environments: {', '.join(missing_envs)}"
+                )
             )
 
         # Check workload environments for required user keys
@@ -357,7 +412,10 @@ def _validate_config(config: Dict[str, Any]) -> None:
                 missing_keys = [key for key in required_keys if key not in user.keys()]
                 if missing_keys:
                     raise AttributeError(
-                        f"User configuration for {workload} in {env} is incomplete. Missing keys: {', '.join(missing_keys)}"
+                        (
+                            f"User configuration for {workload} in {env} is incomplete."
+                            f"Missing keys: {', '.join(missing_keys)}"
+                        )
                     )
                 # We have our required keys, are they the expected types?
                 if not isinstance(user["user"], str):
@@ -380,10 +438,10 @@ def run() -> int:
     try:
         config = _read_config()
     except FileNotFoundError as e:
-        logger.error(f"No configuration file found. ({e})")
+        logger.error("No configuration file found. (%s)", e)
         return 1
     except ValueError as e:
-        logger.error(f"Failed to parse configuration file. ({e})")
+        logger.error("Failed to parse configuration file. (%s)", e)
         return 1
 
     # Configuration data Validation
@@ -391,7 +449,7 @@ def run() -> int:
         _validate_config(config)
         logger.info("Configuration file appears valid.")
     except AttributeError as e:
-        logger.error(f"Configuration file validation failed: {e}")
+        logger.error("Configuration file validation failed: %s", e)
         return 1
 
     # Get the leader environment for cross-environment comparison
@@ -399,7 +457,7 @@ def run() -> int:
         db for db, values in config.get("databases").items() if values.get("leader")
     ][0]
 
-    logger.info(f"Leader database: {anchor_env}")
+    logger.info("Leader database: %s", anchor_env)
 
     # Connect to the databases
     db_connections = {}
@@ -407,13 +465,13 @@ def run() -> int:
         try:
             db_connections[database] = _connect_to_db(config.get("databases")[database])
         except pymysql.err.OperationalError as e:
-            logger.error(f"Failed to connect to database: {database} ({e})")
+            logger.error("Failed to connect to database: %s (%s)", database, e)
             return 1
 
         try:
             db_connections[database].ping()
         except pymysql.MySQLError as e:
-            logger.error(f"Database: {database} not responding: ({e})")
+            logger.error("Database: %s not responding: (%s)", database, e)
             return 1
 
     if len(db_connections.keys()) == len(config.get("databases").keys()):
@@ -422,12 +480,12 @@ def run() -> int:
     # For each workload we need to gather the grants for each user in each env
     all_grants = {}
     for workload_name, workload in config.get("workloads").items():
-        logger.info(f"Gathering MySQL user grants for workload: {workload_name}")
+        logger.info("Gathering MySQL user grants for workload: %s", workload_name)
         all_grants[workload_name] = _gather_workload_grants(workload, db_connections)
 
     # Now we have all the grants and may compare
     for workload_name, workload in all_grants.items():
-        logger.info(f"Comparing grants for workload: {workload_name}")
+        logger.info("Comparing grants for workload: %s", workload_name)
 
         # Compare the per-env grants for the workload
         per_env_workload_grants_status = _compare_per_env_workload_grants(workload)
@@ -445,7 +503,7 @@ def run() -> int:
 
     # Close the database connections
     for conn_name, conn in db_connections.items():
-        logger.info(f"Closing connection to database: {conn_name}")
+        logger.info("Closing connection to database: %s", conn_name)
         conn.close()
 
     logger.info("Finished comparing MySQL user grants.")

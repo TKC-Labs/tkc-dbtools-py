@@ -72,13 +72,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT ON `example`.`syskvp` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-revoke-for-intra-env-example.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-revoke-for-intra-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-workload-grants.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-workload-grants.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -93,13 +93,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT ON `example`.`syskvp` TO `user`@`<IP>`
 
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-revoke-for-cross-env-example.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-revoke-for-cross-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-workload-grants.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-workload-grants.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -119,13 +119,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT, UPDATE ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT, UPDATE ON `example`.`syskvp` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-chaos-for-intra-env-example.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-chaos-for-intra-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-intra-env-example.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-intra-env-example.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -147,7 +147,7 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT, UPDATE ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT, UPDATE ON `example`.`syskvp` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-chaos-for-cross-env-example.sql 
+mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-chaos-for-cross-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants

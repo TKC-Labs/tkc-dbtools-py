@@ -12,4 +12,4 @@ This utility accepts a configuration map of workload users and environments to p
 
 Config File Example:
 
-  - [compare-mysql-grants.yml](examples/compare-mysql-grants.yml)
+  - [compare-mysql-grants.yml](examples/tkc-compare-mysql-grants/compare-mysql-grants.yml)

@@ -13,41 +13,6 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def _compare_workload_user_grants(
-    anchor_user_grants: List[str], user_grants: List[str]
-) -> Set[str]:
-    """Compare the grants of two users."""
-    # Strip the Username and IP address from the grants so we can compare them
-    # without those considerations.
-    stripped_user_grants = [
-        _strip_ip_and_username_from_grant(grant) for grant in user_grants
-    ]
-    stripped_anchor_user_grants = [
-        _strip_ip_and_username_from_grant(grant) for grant in anchor_user_grants
-    ]
-
-    sorted_user_grants = sorted(stripped_user_grants)
-    sorted_anchor_user_grants = sorted(stripped_anchor_user_grants)
-
-    logger.debug("Anchor User grants: %s", sorted_anchor_user_grants)
-    logger.debug("User grants: %s", sorted_user_grants)
-
-    missing_from_anchor_user_grants = set(sorted_user_grants) - set(
-        sorted_anchor_user_grants
-    )
-    missing_from_user_grants = set(sorted_anchor_user_grants) - set(sorted_user_grants)
-
-    logger.debug("Missing from anchor user: %s", missing_from_anchor_user_grants)
-    logger.debug("Missing from user: %s", missing_from_user_grants)
-
-    grant_diffs = {
-        "missing_from_user": missing_from_user_grants,
-        "missing_from_anchor_user": missing_from_anchor_user_grants,
-    }
-
-    return grant_diffs
-
-
 def _compare_cross_env_workload_grants(
     workload: Dict[str, Dict[str, List[str]]], anchor_env: str
 ) -> Dict[str, Dict[str, Dict[str, Set[str]]]]:
@@ -115,6 +80,52 @@ def _compare_per_env_workload_grants(workload: Dict[str, Dict[str, List[str]]]) 
     return workload_grant_diffs
 
 
+def _compare_workload_user_grants(
+    anchor_user_grants: List[str], user_grants: List[str]
+) -> Set[str]:
+    """Compare the grants of two users."""
+    # Strip the Username and IP address from the grants so we can compare them
+    # without those considerations.
+    stripped_user_grants = [
+        _strip_ip_and_username_from_grant(grant) for grant in user_grants
+    ]
+    stripped_anchor_user_grants = [
+        _strip_ip_and_username_from_grant(grant) for grant in anchor_user_grants
+    ]
+
+    sorted_user_grants = sorted(stripped_user_grants)
+    sorted_anchor_user_grants = sorted(stripped_anchor_user_grants)
+
+    logger.debug("Anchor User grants: %s", sorted_anchor_user_grants)
+    logger.debug("User grants: %s", sorted_user_grants)
+
+    missing_from_anchor_user_grants = set(sorted_user_grants) - set(
+        sorted_anchor_user_grants
+    )
+    missing_from_user_grants = set(sorted_anchor_user_grants) - set(sorted_user_grants)
+
+    logger.debug("Missing from anchor user: %s", missing_from_anchor_user_grants)
+    logger.debug("Missing from user: %s", missing_from_user_grants)
+
+    grant_diffs = {
+        "missing_from_user": missing_from_user_grants,
+        "missing_from_anchor_user": missing_from_anchor_user_grants,
+    }
+
+    return grant_diffs
+
+
+def _connect_to_db(database: Dict[str, Any]) -> pymysql.Connection:
+    """Connect to the MySQL database."""
+    return pymysql.connect(
+        host=database["host"],
+        port=database["port"],
+        user=database["user"],
+        password=database["password"],
+        database="mysql",
+    )
+
+
 def _extract_db_table(grant: str) -> tuple:
     """Extract the database and table name from a grant string."""
     match = re.search(r"`([^`]+)`\.`([^`]+)`", grant)
@@ -148,17 +159,6 @@ def _get_grants(conn: pymysql.Connection, user: str, host: str) -> List[str]:
         cursor.execute(query, (user, host))
         grants = [row[0] for row in cursor.fetchall()]
     return sorted(grants)
-
-
-def _connect_to_db(database: Dict[str, Any]) -> pymysql.Connection:
-    """Connect to the MySQL database."""
-    return pymysql.connect(
-        host=database["host"],
-        port=database["port"],
-        user=database["user"],
-        password=database["password"],
-        database="mysql",
-    )
 
 
 def _process_cross_env_workload_grants_status(
@@ -316,11 +316,6 @@ def _read_config(config_file: str = "compare-mysql-grants.yml") -> Dict[str, Any
     return config
 
 
-def _strip_ip_from_grant(grant: str) -> str:
-    """Remove the IP address from a grant string."""
-    return re.sub(r"@\`[^\`]+\`", "@`<IP>`", grant)
-
-
 def _strip_ip_and_username_from_grant(grant: str) -> str:
     """Remove the IP address and username from a grant string."""
     # Remove the IP address
@@ -360,7 +355,7 @@ def _validate_database_config(databases_config: Dict[str, Any]) -> List[str]:
         if missing_keys:
             raise AttributeError(
                 (
-                    f"Database configuration for {database} is incomplete."
+                    f"Database configuration for {database} is incomplete. "
                     f"Missing keys: {', '.join(missing_keys)}"
                 )
             )
@@ -375,7 +370,7 @@ def _validate_database_config(databases_config: Dict[str, Any]) -> List[str]:
     if len(leaders) != 1:
         raise AttributeError(
             (
-                f"Exactly one database must be set as the leader."
+                f"Exactly one database must be set as the leader. "
                 f"Found {len(leaders)} databases set as leader."
             )
         )
@@ -400,7 +395,7 @@ def _validate_workload_config(
         if missing_envs:
             raise AttributeError(
                 (
-                    f"Workload configuration for {workload} is incomplete."
+                    f"Workload configuration for {workload} is incomplete. "
                     f"Missing environments: {', '.join(missing_envs)}"
                 )
             )

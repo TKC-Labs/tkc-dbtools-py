@@ -1,19 +1,18 @@
 [project]
 name = "tkc_dbtools"
-version = "0.1.0"
+version = "0.1.1"
 description = "Various db tools"
 authors = [
     {name = "Chris Row",email = "1418370+memblin@users.noreply.github.com"}
 ]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.8, !=3.9.0, !=3.9.1, <4.0.0"
 dependencies = [
     "pymysql (>=1.1.1,<2.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",
     "cryptography (>=44.0.1,<45.0.0)"
 ]
-
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

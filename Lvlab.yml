@@ -1,0 +1,66 @@
+# This is the Lvlab configuration file I use when spinning up VMs to test
+# different Linux distributions. https://github.com/memblin/tkc-lvlab-py
+---
+environment:
+  - name: local
+    libvirt_uri: qemu:///system
+    config_defaults:
+      domain: local
+      os: fedora41
+      cpu: 2
+      memory: 4096
+      disks:
+        - name: primary
+          size: 25G
+      interfaces:
+        network: default
+        nameservers:
+          search: [local]
+          addresses: [192.168.122.1]
+      cloud_init:
+        user: root
+        pubkey: ~/.ssh/id_ed25519.pub
+        sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+        shell: /bin/bash
+
+    machines:
+      - vm_name: ubuntu22-dev
+        hostname: ubuntu22-dev
+        fqdn: ubuntu22.dev.local
+        os: ubuntu22.04
+        interfaces:
+          - name: enp1s0
+            ip4: 192.168.122.120/24
+            ip4gw: 192.168.122.1
+      - vm_name: debian12-dev
+        hostname: debian12-dev
+        fqdn: debian12.dev.local
+        os: debian12
+        interfaces:
+          - name: enp1s0
+            ip4: 192.168.122.121/24
+            ip4gw: 192.168.122.1
+      - vm_name: fedora41-dev
+        hostname: fedora41-dev
+        fqdn: fedora41.dev.local
+        os: fedora41
+        interfaces:
+          - name: enp1s0
+            ip4: 192.168.122.122/24
+            ip4gw: 192.168.122.1
+
+images:
+  ubuntu22.04:
+    image_url: https://cloud-images.ubuntu.com/jammy/20250228/jammy-server-cloudimg-amd64.img
+    network_version: 2
+  debian12:
+    image_url: https://cloud.debian.org/images/cloud/bookworm/20250210-2019/debian-12-generic-amd64-20250210-2019.qcow2
+    checksum_url: https://cloud.debian.org/images/cloud/bookworm/20250210-2019/SHA512SUMS
+    checksum_type: sha512
+    network_version: 2
+  fedora41:
+    image_url: https://download-ib01.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2
+    checksum_url: https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-41-1.4-x86_64-CHECKSUM
+    checksum_type: sha256
+    checksum_url_gpg: https://fedoraproject.org/fedora.gpg
+    network_version: 2

@@ -23,7 +23,7 @@ cleanup() {
 check_db_ready() {
     local DB_NAME=$1
     local PORT=$2
-    until  mysqladmin ping --silent -h 127.0.0.1 -P $PORT -u root -proot > /dev/null; do
+    until  mysqladmin --defaults-file=$(dirname "$0")/my-login.cnf  --silent -h 127.0.0.1 ping --silent -h 127.0.0.1 -P $PORT > /dev/null; do
         echo "Waiting for $DB_NAME database connection..."
         sleep 2
     done
@@ -115,20 +115,20 @@ echo
 echo "Deploying example database schema..."
 
 # devdb is on 3307
-if ! mysql -h localhost -P 3307 -u root -proot -e 'use example;' 2> /dev/null; then
-mysql -h localhost -P 3307 -u root -proot < $(dirname "$0")/schema.sql
+if ! mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3307 -e 'use example;' 2> /dev/null; then
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3307 < $(dirname "$0")/schema.sql
 echo "  Example database schema deployed to devdb."
 fi
 
 # proddb is on 3306
-if ! mysql -h localhost -P 3306 -u root -proot -e 'use example;' 2> /dev/null; then
-mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/schema.sql
+if ! mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3306 -e 'use example;' 2> /dev/null; then
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3306 < $(dirname "$0")/schema.sql
 echo "  Example database schema deployed to proddb."
 fi
 
 # stagedb is on 3308
-if ! mysql -h localhost -P 3308 -u root -proot -e 'use example;' 2> /dev/null; then
-mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/schema.sql
+if ! mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3308 -e 'use example;' 2> /dev/null; then
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3308 < $(dirname "$0")/schema.sql
 echo "  Example database schema deployed to stagedb."
 fi
 
@@ -137,32 +137,32 @@ echo
 echo "Creating users and applying grants..."
 
 # devdb is on 3307
-mysql -h localhost -P 3307 -u root -proot < $(dirname "$0")/dev-api-workload-grants.sql
-mysql -h localhost -P 3307 -u root -proot < $(dirname "$0")/dev-syskvp-workload-grants.sql
-mysql -h localhost -P 3307 -u root -proot < $(dirname "$0")/dev-user-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3307 < $(dirname "$0")/dev-api-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3307 < $(dirname "$0")/dev-syskvp-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3307 < $(dirname "$0")/dev-user-workload-grants.sql
 
 # proddb is on 3306
-mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/prod-api-workload-grants.sql
-mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/prod-syskvp-workload-grants.sql
-mysql -h localhost -P 3306 -u root -proot < $(dirname "$0")/prod-user-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3306 < $(dirname "$0")/prod-api-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3306 < $(dirname "$0")/prod-syskvp-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3306 < $(dirname "$0")/prod-user-workload-grants.sql
 
 # stagedb is on 3306
-mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/stage-api-workload-grants.sql
-mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/stage-syskvp-workload-grants.sql
-mysql -h localhost -P 3308 -u root -proot < $(dirname "$0")/stage-user-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3308 < $(dirname "$0")/stage-api-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3308 < $(dirname "$0")/stage-syskvp-workload-grants.sql
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3308 < $(dirname "$0")/stage-user-workload-grants.sql
 
 # Show the users created
 echo
 echo "Users deployed to devdb:"
-mysql -h localhost -P 3307 -u root -proot -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3307 -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
 
 echo
 echo "Users deployed to proddb:"
-mysql -h localhost -P 3306 -u root -proot -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3306 -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
 
 echo
 echo "Users deployed to stagedb:"
-mysql -h localhost -P 3308 -u root -proot -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
+mysql --defaults-file=$(dirname "$0")/my-login.cnf -h 127.0.0.1 -P 3308 -e "SELECT User,Host FROM mysql.user WHERE Host NOT IN ('%', 'localhost')"
 
 echo
 echo "Ready for testing"

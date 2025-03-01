@@ -30,6 +30,8 @@ To run this example you'll need a few things installed on the container host mac
   - `mysql` CLI client
   - `mysqladmin` CLI client
 
+*See the [system prep guide](examples/tkc-compare-mysql-grants/SYSPREP.md) for OS specific setup information.*
+
 The deployment scripts check for these binaries before attempting to run.
 
 - [deploy_example_in_podman.sh](examples/tkc-compare-mysql-grants/deploy_example_in_podman.sh)
@@ -42,15 +44,22 @@ The deployment scripts check for these binaries before attempting to run.
 ## Usage
 
 ```bash
+# Clone the repository to the local machine
+git clone https://github.com/TKC-Labs/tkc-dbtools-py.git
+
+# Change directory into the local repo clone
+# Checkout the branch you want to work with if it's different than main
+cd tkc-dbtools-py
+
 # Create a new venv for testing and install the tkc_dbtools module
 python3 -m venv venv
 
-# Activate, Update, and Install
+# Activate the venv and update pip
 source venv/bin/activate
 pip install --upgrade pip
 
-# Then install from the branch you have checked out in your local clone
-pip install git+file://$(pwd)
+# pip install tkc_dbtools from the local clone
+pip install .
 
 # From the example directory
 cd examples/tkc-compare-mysql-grants/
@@ -72,13 +81,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT ON `example`.`syskvp` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-revoke-for-intra-env-example.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-grants-revoke-for-intra-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-workload-grants.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-workload-grants.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -93,13 +102,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT ON `example`.`syskvp` TO `user`@`<IP>`
 
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-revoke-for-cross-env-example.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-grants-revoke-for-cross-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-workload-grants.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-workload-grants.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -119,13 +128,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT, UPDATE ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT, UPDATE ON `example`.`syskvp` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-chaos-for-intra-env-example.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-grants-chaos-for-intra-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-intra-env-example.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-intra-env-example.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -147,13 +156,13 @@ tkc-compare-mysql-grants
 #   GRANT SELECT, INSERT, UPDATE ON `example`.`api` TO `user`@`<IP>`
 #   GRANT SELECT, UPDATE ON `example`.`syskvp` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-chaos-for-cross-env-example.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-grants-chaos-for-cross-env-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-cross-env-example.sql
+mysql -h 127.0.0.1 -P 3307 -u root -proot < ./dev-api-grants-cleanup-chaos-for-cross-env-example.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
@@ -174,13 +183,13 @@ tkc-compare-mysql-grants
 # Grants missing from api-stage@192.168.124.10 present for anchor user api@192.168.123.10:
 #   GRANT SELECT ON `example`.`users` TO `user`@`<IP>`
 #
-mysql -h localhost -P 3306 -u root -proot < ./prod-api-add-extra-grants-example.sql
+mysql -h 127.0.0.1 -P 3306 -u root -proot < ./prod-api-add-extra-grants-example.sql
 
 # Check that the issue is reported
 tkc-compare-mysql-grants
 
 # Return to the original state
-mysql -h localhost -P 3306 -u root -proot < ./prod-api-remove-extra-grants-example.sql
+mysql -h 127.0.0.1 -P 3306 -u root -proot < ./prod-api-remove-extra-grants-example.sql
 
 # Check that there are no grants issues
 tkc-compare-mysql-grants
